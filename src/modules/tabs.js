@@ -28,8 +28,6 @@ layui.define('component', function(exports) {
       CARD: 'layui-tabs-card'
     },
 
-    isRenderOnEvent: false,
-
     // 渲染
     render: function() {
       var that = this;
@@ -56,7 +54,7 @@ layui.define('component', function(exports) {
 
       // 若 header 选项类型为数组
       if (layui.type(options.header) === 'array') {
-        if (options.header.length === 0) return;
+        // if (options.header.length === 0) return;
 
         // 给任意元素绑定 tabs 切换功能
         if (typeof options.header[0] === 'string') {
@@ -145,7 +143,7 @@ layui.define('component', function(exports) {
           clearTimeout(timer);
           timer = setTimeout(function(){
             layui.each(component.cache.id, function(key) {
-              var that = component.getThis(key);
+              var that = component.getInst(key);
               if(!that) return;
               that.roll('init');
             });
@@ -173,7 +171,8 @@ layui.define('component', function(exports) {
    * @param {string} opts.id - 标签的 lay-id 属性值
    * @param {string} [opts.index] - 活动标签索引，默认取当前选中标签的索引
    * @param {('append'|'prepend'|'after'|'before')} [opts.mode='append'] - 标签插入方式
-   * @param {string} [opts.closable] - 标签是否可关闭。初始值取决于 options.closable
+   * @param {boolean} [opts.active] - 是否将新增项设置为活动标签
+   * @param {boolean} [opts.closable] - 标签是否可关闭。初始值取决于 options.closable
    * @param {string} [opts.headerItem] - 自定义标签头部元素
    * @param {string} [opts.bodyItem] - 自定义标签内容元素
    * @param {Function} [opts.done] - 标签添加成功后执行的回调函数
@@ -184,10 +183,15 @@ layui.define('component', function(exports) {
     var container = that.getContainer();
     var newHeaderItem = that.renderHeaderItem(opts);
     var newBodyItem = that.renderBodyItem(opts);
+    var data = that.data();
+
+    // 选项默认值
+    opts = $.extend({
+      active: true
+    }, opts);
 
     // 插入方式
     if (/(before|after)/.test(opts.mode)) { // 在活动标签前后插入
-      var data = that.data();
       var hasOwnIndex = opts.hasOwnProperty('index');
       var headerItem = hasOwnIndex ? that.findHeaderItem(opts.index) : data.thisHeaderItem;
       var bodyItem = hasOwnIndex ? that.findBodyItem(opts.index) : data.thisHeaderItem;
@@ -202,12 +206,20 @@ layui.define('component', function(exports) {
       container.body.elem[mode](newBodyItem);
     }
 
-    // 将插入项切换为当前标签
-    that.change(newHeaderItem, true);
+    // 是否将新增项设置为活动标签
+    if (opts.active) {
+      that.change(newHeaderItem, true);
+    } else {
+      that.roll('auto');
+    }
 
     // 回调
-    var params = that.data();
-    typeof opts.done === 'function' && opts.done(params);
+    typeof opts.done === 'function' && opts.done(
+      $.extend(data, {
+        headerItem: newHeaderItem,
+        bodyItem: newBodyItem
+      })
+    );
   };
 
   /**
@@ -216,13 +228,12 @@ layui.define('component', function(exports) {
    * @param {boolean} force - 是否强制删除
    */
   Class.prototype.close = function(thisHeaderItem, force) {
-    if(!thisHeaderItem || !thisHeaderItem[0]) return;
+    if (!thisHeaderItem || !thisHeaderItem[0]) return;
 
     var that = this;
     var options = that.config;
+    var layid = thisHeaderItem.attr('lay-id');
     var index = thisHeaderItem.index();
-
-    if (!thisHeaderItem[0]) return;
 
     // 标签是否不可关闭
     if (thisHeaderItem.attr('lay-closable') === 'false') {
@@ -230,7 +241,7 @@ layui.define('component', function(exports) {
     }
 
      // 当前标签相关数据
-     var params = that.data();
+     var data = that.data();
 
     // 标签关闭前的事件。若非强制关闭，可则根据事件的返回结果决定是否关闭
     if (!force) {
@@ -238,8 +249,8 @@ layui.define('component', function(exports) {
         thisHeaderItem[0],
         component.CONST.MOD_NAME,
         'beforeClose('+ options.id +')',
-        $.extend(params, {
-          index: thisHeaderItem.index()
+        $.extend(data, {
+          index: index
         })
       );
 
@@ -259,20 +270,20 @@ layui.define('component', function(exports) {
     }
 
     // 移除元素
+    that.findBodyItem(layid || index).remove();
     thisHeaderItem.remove();
-    that.findBodyItem(index).remove();
 
     that.roll('auto', index);
 
     // 获取当前标签相关数据
-    var params = that.data();
+    var data = that.data();
 
     // 标签关闭后的事件
     layui.event.call(
-      params.thisHeaderItem[0],
+      data.thisHeaderItem[0],
       component.CONST.MOD_NAME,
       'afterClose('+ options.id +')',
-      params
+      data
     );
   };
 
@@ -292,14 +303,9 @@ layui.define('component', function(exports) {
 
     index = index === undefined ? data.index : index;
 
-    // 将标签头 lay-closable 属性值同步到 body 项
-    headers.each(function(i) {
-      var othis = $(this);
-      var closableAttr = othis.attr('lay-closable');
-      if (closableAttr) {
-        bodys.eq(i).attr('lay-closable', closableAttr);
-      }
-    });
+    var headerItem = that.findHeaderItem(index);
+    var bodyItem = that.findBodyItem(index);
+    var itemIndex = headerItem.index();
 
     // 若当前选中标签也允许关闭，则尝试寻找不可关闭的标签并将其选中
     if (data.thisHeaderItem.attr('lay-closable') !== 'false') {
@@ -311,34 +317,45 @@ layui.define('component', function(exports) {
         } else if(prevHeader[0]) {
           that.change(prevHeader, true);
         }
-      } else if(index !== data.index) { // 自动切换到活动标签（功能可取消）
-        that.change(that.findHeaderItem(index), true);
+      } else if(index !== data.index) { // 自动切换到活动标签
+        that.change(headerItem, true);
       }
     }
 
     // 执行批量关闭标签
-    if (mode === 'other') { // 关闭其他标签
-      headers.eq(index).siblings(FILTER).remove();
-      bodys.eq(index).siblings(FILTER).remove();
-    } else if(mode === 'right') { // 关闭右侧标签
-      headers.filter(':gt('+ index +')'+ FILTER).remove();
-      bodys.filter(':gt('+ index +')'+ FILTER).remove();
-    } else { // 关闭所有标签
-      headers.filter(FILTER).remove();
-      bodys.filter(FILTER).remove();
-    }
+    headers.each(function(i) {
+      var $this = $(this);
+      var layid = $this.attr('lay-id');
+      var bodyItem = that.findBodyItem(layid || i);
+
+      // 标签是否不可关闭
+      if ($this.attr('lay-closable') === 'false') {
+        return;
+      }
+
+      // 批量关闭方式
+      var isCloseOther = mode === 'other' && i !== itemIndex; // 关闭其他标签
+      var isCloseRight = mode === 'right' && i > itemIndex; // 关闭右侧标签
+      var isCloseLeft = mode === 'left' && i < itemIndex; // 关闭左侧标签（不推荐）
+      var isCloseAll = mode === 'all'; // 关闭所有标签
+
+      if (isCloseOther || isCloseRight || isCloseLeft || isCloseAll) {
+        $this.remove();
+        bodyItem.remove();
+      }
+    });
 
     that.roll('auto');
 
     // 回调
-    var params = that.data();
+    var data = that.data();
 
     // 标签关闭后的事件
     layui.event.call(
-      params.thisHeaderItem[0],
+      data.thisHeaderItem[0],
       component.CONST.MOD_NAME,
       'afterClose('+ options.id +')',
-      params
+      data
     );
   };
 
@@ -353,6 +370,7 @@ layui.define('component', function(exports) {
 
     var that = this;
     var options = that.config;
+    var layid = thisHeaderItem.attr('lay-id');
     var index = thisHeaderItem.index();
     var thatA = thisHeaderItem.find('a');
     // 是否存在跳转链接
@@ -366,7 +384,7 @@ layui.define('component', function(exports) {
     }
 
     // 当前标签相关数据
-    var params = that.data();
+    var data = that.data();
 
     // 标签关闭前的事件。若非强制关闭，可则根据事件的返回结果决定是否关闭
     if (!force) {
@@ -374,13 +392,13 @@ layui.define('component', function(exports) {
         thisHeaderItem[0],
         component.CONST.MOD_NAME,
         'beforeChange('+ options.id +')',
-        $.extend(params, {
+        $.extend(data, {
           from: {
-            index: params.index,
-            headerItem: params.thisHeaderItem
+            index: data.index,
+            headerItem: data.thisHeaderItem
           },
           to: {
-            index: thisHeaderItem.index(),
+            index: index,
             headerItem: thisHeaderItem
           }
         })
@@ -397,20 +415,20 @@ layui.define('component', function(exports) {
     .removeClass(component.CONST.CLASS_THIS);
 
     // 执行标签内容切换
-    that.findBodyItem(index).addClass(component.CONST.CLASS_SHOW)
+    that.findBodyItem(layid || index).addClass(component.CONST.CLASS_SHOW)
     .siblings().removeClass(component.CONST.CLASS_SHOW);
 
     that.roll('auto', index);
 
     // 重新获取标签相关数据
-    var params = that.data();
+    var data = that.data();
 
     // 标签切换后的事件
     layui.event.call(
-      params.thisHeaderItem[0],
+      data.thisHeaderItem[0],
       component.CONST.MOD_NAME,
       'afterChange('+ options.id +')',
-      params
+      data
     );
   };
 
@@ -423,17 +441,8 @@ layui.define('component', function(exports) {
     var options = that.config;
     var headerItem = $(opts.headerItem || options.headerItem || '<li></li>');
 
-    headerItem.html(opts.title || 'New Tab');
-
-    // 追加属性
-    layui.each(opts, function(key, value){
-      if(/^(title|content|mode|done)$/.test(key)) return;
-      headerItem.attr('lay-'+ key, value);
-    });
-
-    // 追加标签关闭元素
-    that.appendClose(headerItem, opts);
-
+    headerItem.html(opts.title || 'New Tab').attr('lay-id', opts.id);
+    that.appendClose(headerItem, opts); // 追加标签关闭元素
     return headerItem;
   };
 
@@ -442,11 +451,11 @@ layui.define('component', function(exports) {
    * @param {Object} opts - 标签项配置信息
    */
   Class.prototype.renderBodyItem = function(opts) {
-    var that = this
-    var options = that.config
+    var that = this;
+    var options = that.config;
     var bodyItem = $(opts.bodyItem || options.bodyItem || '<div class="'+ component.CONST.ITEM +'"></div>');
 
-    bodyItem.html(opts.content || '');
+    bodyItem.html(opts.content || '').attr('lay-id', opts.id);
     return bodyItem;
   };
 
@@ -459,12 +468,16 @@ layui.define('component', function(exports) {
     var that = this
     var options = that.config;
 
-    if(!options.closable) return;
+    if (!options.closable) return;
 
     opts = opts || {};
 
     // 不可关闭项
-    if (opts.closable === 'false' || headerItem.attr('lay-closable') === 'false') {
+    if (opts.closable == false) {
+      headerItem.attr('lay-closable', 'false');
+    }
+
+    if (headerItem.attr('lay-closable') === 'false') {
       return;
     }
 
@@ -484,21 +497,16 @@ layui.define('component', function(exports) {
     var that = this;
     var options = that.config;
     var container = that.getContainer();
-    var hasDel = that.cache('close');
 
-    // 是否开启关闭
-    if (options.closable) {
-      if (!hasDel) {
-        container.header.items.each(function(){
-          that.appendClose($(this));
-        });
-        that.cache('close', true);
+    container.header.items.each(function() {
+      var $this = $(this);
+      // 是否开启关闭
+      if (options.closable) {
+        that.appendClose($this);
+      } else {
+        $this.find('.'+ component.CONST.CLOSE).remove();
       }
-    } else if(hasDel) {
-      container.header.items.each(function() {
-        $(this).find('.'+ component.CONST.CLOSE).remove();
-      });
-    }
+    });
   };
 
   /**
@@ -557,7 +565,7 @@ layui.define('component', function(exports) {
 
     // 滚动结构
     var rollElem = {
-      elem: $('<div class="'+ CLASS_SCROLL +' layui-unselect"></div>'),
+      elem: $('<div class="'+ CLASS_SCROLL +' layui-border-box layui-unselect"></div>'),
       bar: $([
         '<div class="'+ CLASS_BAR +'">',
           '<i class="layui-icon '+ CLASS_BAR_ICON[0] +'" lay-mode="prev"></i>',
@@ -648,25 +656,41 @@ layui.define('component', function(exports) {
   };
 
   /**
-   * 根据 id 或 index 获取相关标签头部项
-   * @param {number|string} index - 标签索引或 id
+   * 获取标签头部项
+   * @param {number|string} index - 标签索引或 lay-id
    */
   Class.prototype.findHeaderItem = function(index) {
-    if(!(
-      typeof index === 'number'
-      || (typeof index === 'string' && index)
-    )) return;
-    var headerItems = this.getContainer().header.items;
-    var item = headerItems.filter('[lay-id="'+ index +'"]');
-    return item[0] ? item : headerItems.eq(index);
+    var container = this.getContainer();
+    var headerItems = container.header.items;
+
+    // 根据 lay-id 匹配
+    if (typeof index === 'string') {
+      return headerItems.filter('[lay-id="'+ index +'"]');
+    }
+
+    return headerItems.eq(index);
   };
 
   /**
-   * 根据 index 获取相关标签内容项
-   * @param {number} index - 标签索引
+   * 获取标签内容项
+   * @param {number|string} index - 标签索引或 lay-id
    */
   Class.prototype.findBodyItem = function(index) {
-    return this.getContainer().body.items.eq(index);
+    var container = this.getContainer();
+    var bodyItems = container.body.items;
+
+    // 根据 lay-id 匹配
+    if (typeof index === 'string') {
+      var bodyItem = bodyItems.filter('[lay-id="'+ index +'"]');
+      return bodyItem[0] ? bodyItem : function() {
+        // 若未匹配到 lay-id 对应内容项，则通过对应头部项的索引匹配内容项
+        var headerItems = container.header.items;
+        var headerItem = headerItems.filter('[lay-id="'+ index +'"]');
+        return bodyItems.eq(headerItem.index());
+      }();
+    }
+
+    return bodyItems.eq(index);
   };
 
   /**
@@ -683,11 +707,11 @@ layui.define('component', function(exports) {
     return {
       options: options, // 标签配置信息
       container: container, // 标签容器的相关元素
-      thisHeaderItem: thisHeaderItem, // 当前标签头部项
-      thisBodyItem: that.findBodyItem(index), // 当前标签内容项
-      index: index, // 当前标签索引
-      length: container.header.items.length // 当前标签数
-    }
+      thisHeaderItem: thisHeaderItem, // 当前活动标签头部项
+      thisBodyItem: that.findBodyItem(index), // 当前活动标签内容项
+      index: index, // 当前活动标签索引
+      length: container.header.items.length // 标签数量
+    };
   };
 
   // 扩展组件接口
@@ -698,7 +722,7 @@ layui.define('component', function(exports) {
      * @param {Object} opts - 添加标签的配置项，详见 Class.prototype.add
      */
     add: function(id, opts) {
-      var that = component.getThis(id);
+      var that = component.getInst(id);
       if(!that) return;
       that.add(opts);
     },
@@ -710,9 +734,12 @@ layui.define('component', function(exports) {
      * @param {boolean} [force=false] - 是否强制关闭
      */
     close: function(id, index, force) {
-      var that = component.getThis(id);
-      if(!that) return;
-      if(index === undefined) index = that.data().index; // index 若不传，则表示关闭当前标签
+      var that = component.getInst(id);
+      if (!that) return;
+      // index 若不传，则表示关闭当前标签
+      if (index === undefined) {
+        index = that.data().index;
+      }
       that.close(that.findHeaderItem(index), force);
     },
 
@@ -722,10 +749,10 @@ layui.define('component', function(exports) {
      * @param {('other'|'right'|'all')} [mode="all"] - 关闭方式
      * @param {number} index - 活动标签的索引，默认取当前选中标签的索引。一般用于标签右键事件
      */
-    closeMult: function(id, mode, index, force) {
-      var that = component.getThis(id);
+    closeMult: function(id, mode, index) {
+      var that = component.getInst(id);
       if(!that) return;
-      that.closeMult(mode, index, force);
+      that.closeMult(mode, index);
     },
 
     /**
@@ -734,7 +761,7 @@ layui.define('component', function(exports) {
      * @param {number} index - 标签索引
      */
     change: function(id, index, force) {
-      var that = component.getThis(id);
+      var that = component.getInst(id);
       if(!that) return;
       that.change(that.findHeaderItem(index), force);
     },
@@ -744,18 +771,18 @@ layui.define('component', function(exports) {
      * @param {string} id - 渲染时的实例 ID
      */
     data: function(id) {
-      var that = component.getThis(id);
+      var that = component.getInst(id);
       return that ? that.data() : {};
     },
 
     /**
      * 获取标签指定头部项
      * @param {string} id - 渲染时的实例 ID
-     * @param {number} index - 标签索引
+     * @param {number} index - 标签索引或 lay-id 值
      * @returns
      */
     getHeaderItem: function(id, index) {
-      var that = component.getThis(id);
+      var that = component.getInst(id);
       if(!that) return;
       return that.findHeaderItem(index);
     },
@@ -763,11 +790,11 @@ layui.define('component', function(exports) {
     /**
      * 获取标签指定内容项
      * @param {string} id - 渲染时的实例 ID
-     * @param {number} index - 标签索引
+     * @param {number} index - 标签索引或 lay-id 值
      * @returns
      */
     getBodyItem: function(id, index) {
-      var that = component.getThis(id);
+      var that = component.getInst(id);
       if(!that) return;
       return that.findBodyItem(index);
     },
@@ -777,7 +804,7 @@ layui.define('component', function(exports) {
      * @param {string} id - 渲染时的实例 ID
      */
     refresh: function(id) {
-      var that = component.getThis(id);
+      var that = component.getInst(id);
       if (!that) return;
       that.roll('auto');
     }

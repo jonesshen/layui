@@ -387,7 +387,7 @@ layui.define(['table'], function (exports) {
     layui.each(tableData, function (i1, item1) {
       var dataIndex = (parentIndex ? parentIndex + '-' : '') + i1;
       var dataNew = $.extend({}, item1);
-      
+
       dataNew[pIdKey] = typeof item1[pIdKey] !== 'undefined' ? item1[pIdKey] : parentId;
       flat.push(dataNew);
       flat = flat.concat(that.treeToFlat(item1[childrenKey], item1[customName.id], dataIndex));
@@ -590,7 +590,7 @@ layui.define(['table'], function (exports) {
   })()
 
   // 优化参数，添加一个 getNodeByIndex 方法 只传 表格id 和行 dataIndex 分几步优化 todo
-  var expandNode = function (treeNode, expandFlag, sonSign, focus, callbackFlag) {
+  var expandNode = function (treeNode, expandFlag, sonSign, focus, callbackFlag, done) {
     // treeNode // 需要展开的节点
     var trElem = treeNode.trElem;
     var tableViewElem = treeNode.tableViewElem || trElem.closest(ELEM_VIEW);
@@ -658,7 +658,7 @@ layui.define(['table'], function (exports) {
               tableViewElem: tableViewElem,
               tableId: tableId,
               options: options,
-            }, expandFlag, sonSign, focus, callbackFlag);
+            }, expandFlag, sonSign, focus, callbackFlag, done);
           } else if (item1[LAY_EXPAND]) { // 初始化级联展开
             expandNode({
               dataIndex: item1[LAY_DATA_INDEX],
@@ -666,7 +666,7 @@ layui.define(['table'], function (exports) {
               tableViewElem: tableViewElem,
               tableId: tableId,
               options: options,
-            }, true);
+            }, true, undefined, undefined, undefined, done);
           }
         });
       } else {
@@ -681,7 +681,7 @@ layui.define(['table'], function (exports) {
             trData[LAY_ASYNC_STATUS] = 'success';
             trData[customName.children] = data;
             treeTableThat.initData(trData[customName.children], trData[LAY_DATA_INDEX])
-            expandNode(treeNode, true, isToggle ? false : sonSign, focus, callbackFlag);
+            expandNode(treeNode, true, isToggle ? false : sonSign, focus, callbackFlag, done);
           }
 
           var format = asyncSetting.format; // 自定义数据返回方法
@@ -804,7 +804,7 @@ layui.define(['table'], function (exports) {
                 tableViewElem: tableViewElem,
                 tableId: tableId,
                 options: options,
-              }, expandFlag, sonSign, focus, callbackFlag);
+              }, expandFlag, sonSign, focus, callbackFlag, done);
             })
           }
         }
@@ -820,7 +820,7 @@ layui.define(['table'], function (exports) {
             tableViewElem: tableViewElem,
             tableId: tableId,
             options: options,
-          }, expandFlag, sonSign, focus, callbackFlag);
+          }, expandFlag, sonSign, focus, callbackFlag, done);
         });
         tableViewElem.find(childNodes.map(function (value, index, array) { // 只隐藏直接子节点，其他由递归的处理
           return 'tr[lay-data-index="' + value[LAY_DATA_INDEX] + '"]'
@@ -843,6 +843,10 @@ layui.define(['table'], function (exports) {
       layui.type(onExpand) === 'function' && onExpand(tableId, trData, trExpand);
     }
 
+    if(layui.type(done) === 'function' && trData[LAY_ASYNC_STATUS] !== 'loading'){
+      done(tableId, trData, trExpand);
+    }
+
     return retValue;
   }
 
@@ -853,7 +857,8 @@ layui.define(['table'], function (exports) {
    * @param {Number|String} opts.index 展开行的数据下标
    * @param {Boolean} [opts.expandFlag] 展开、关闭、切换
    * @param {Boolean} [opts.inherit] 是否级联子节点
-   * @param {Boolean} [opts.callbackFlag] 是否触发事件
+   * @param {Boolean} [opts.callbackFlag] 是否触发 tree.callback 事件
+   * @param {Boolean} [opts.done] 节点操作完成后的回调函数
    * @return [{Boolean}] 状态结果
    * */
   treeTable.expandNode = function (id, opts) {
@@ -871,7 +876,7 @@ layui.define(['table'], function (exports) {
     var tableViewElem = options.elem.next();
     return expandNode({
       trElem: tableViewElem.find('tr[lay-data-index="' + index + '"]').first()
-    }, expandFlag, sonSign, null, callbackFlag)
+    }, expandFlag, sonSign, null, callbackFlag, opts.done)
   };
 
   /**
@@ -1028,7 +1033,7 @@ layui.define(['table'], function (exports) {
     // 处理节点图标
     if(treeOptions.view.showIcon){
       var nodeIconElem = scopeEl.find('.layui-table-tree-nodeIcon:not(.layui-table-tree-iconCustom)');
-      var nodeIcon = isParent 
+      var nodeIcon = isParent
         ? (isExpand ? treeOptions.view.iconOpen : treeOptions.view.iconClose)
         : treeOptions.view.iconLeaf;
 
@@ -1373,7 +1378,7 @@ layui.define(['table'], function (exports) {
       indexArr.push('tr[lay-data-index="' + delNodeDataIndex + '"]');
       // 删除临时 key
       if(delNodeDataIndex.indexOf('-') !== -1){
-        delete tableCache[delNodeDataIndex]; 
+        delete tableCache[delNodeDataIndex];
       }
     })
 
@@ -1424,7 +1429,7 @@ layui.define(['table'], function (exports) {
         scopeEl: trEl,
         isExpand: nodeP[LAY_EXPAND],
         isParent: nodeP[isParentKey],
-      });  
+      });
     }
 
     // 重新适配尺寸
@@ -1589,7 +1594,7 @@ layui.define(['table'], function (exports) {
         scopeEl: trEl,
         isExpand: parentNode[LAY_EXPAND],
         isParent: parentNode[isParentKey],
-      }); 
+      });
     }
     treeTable.resize(id);
     if (focus) {
@@ -1724,7 +1729,7 @@ layui.define(['table'], function (exports) {
 
     var index = tr.data('index');
     var tableViewElem = options.elem.next();
-    
+
     tr[checked ? 'addClass' : 'removeClass'](ELEM_CHECKED); // 主体行
 
     // 右侧固定行
@@ -1760,7 +1765,7 @@ layui.define(['table'], function (exports) {
 
         // 标记父节点行背景色
         that.setRowCheckedClass(checkboxElem.closest('tr'), checked);
-        
+
         // 设置原始复选框 checked 属性值并渲染
         checkboxElem.prop({
           checked: checked,
@@ -1792,7 +1797,7 @@ layui.define(['table'], function (exports) {
     }else{
       isAll = false;
     }
-    
+
     isIndeterminate = isIndeterminate && !isAll;
     tableView.find('input[name="layTableCheckbox"][lay-filter="layTableAllChoose"]').prop({
       'checked': isAll,
@@ -1945,7 +1950,7 @@ layui.define(['table'], function (exports) {
           // 找到父节点，然后判断父节点的子节点是否全部选中
           trDataP = that.getNodeDataByIndex(trData[LAY_PARENT_INDEX]);
         }
-        
+
         return that.updateCheckStatus(trDataP, checked);
       }
     }

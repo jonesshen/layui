@@ -13,14 +13,11 @@ layui.define(['jquery', 'lay'], function(exports) {
   exports('component', function(settings) {
     // 默认设置
     settings = $.extend(true, {
-      isRenderWithoutElem: false, // 渲染是否无需指定目标元素
-      isRenderOnEvent: true, // 渲染是否仅由事件触发。--- 推荐根据组件类型始终显式设置对应值
       isDeepReload: false // 是否默认为深度重载
     }, settings);
 
     // 组件名
     var MOD_NAME = settings.name;
-    var MOD_INDEX = 'layui_'+ MOD_NAME +'_index'; // 组件索引名
     var MOD_ID = 'lay-' + MOD_NAME + '-id'; // 用于记录组件实例 id 的属性名
 
     // 组件基础对外接口
@@ -31,7 +28,7 @@ layui.define(['jquery', 'lay'], function(exports) {
       // 通用常量集，一般存放固定字符，如类名等
       CONST: $.extend(true, {
         MOD_NAME: MOD_NAME,
-        MOD_INDEX: MOD_INDEX,
+        MOD_ID: MOD_ID,
 
         CLASS_THIS: 'layui-this',
         CLASS_SHOW: 'layui-show',
@@ -103,12 +100,12 @@ layui.define(['jquery', 'lay'], function(exports) {
     // 重载实例
     Class.prototype.reload = function(options, type) {
       var that = this;
-      $.extend(settings.isDeepReload, that.config, options);
+      that.config = $.extend(settings.isDeepReload, {}, that.config, options);
       that.init(true, type);
     };
 
     // 初始化准备（若由事件触发渲染，则必经此步）
-    Class.prototype.init = function(rerender, type){
+    Class.prototype.init = function(rerender, type) {
       var that = this;
       var options = that.config;
       var elem = $(options.elem);
@@ -124,11 +121,17 @@ layui.define(['jquery', 'lay'], function(exports) {
       }
 
       // 合并 lay-options 属性上的配置信息
-      $.extend(true, options, lay.options(elem[0]));
+      var layOptions = lay.options(elem[0]);
+      if (rerender) {
+        // 若重载渲染，则重载传入的 options 配置优先
+        options = that.config = $.extend(layOptions, options);
+      } else {
+        $.extend(options, layOptions); // 若首次渲染，则 lay-options 配置优先
+      }
 
       // 若重复执行 render，则视为 reload 处理
       if (!rerender && elem.attr(MOD_ID)) {
-        var newThat = instance.getThis(elem.attr(MOD_ID));
+        var newThat = component.getInst(elem.attr(MOD_ID));
         if (!newThat) return;
         return newThat.reload(options, type);
       }
@@ -148,57 +151,76 @@ layui.define(['jquery', 'lay'], function(exports) {
         settings.beforeRender.call(that, options);
       }
 
-      // 执行渲染
-      var render = function() {
+      // 渲染
+      if (typeof that.render === 'function') {
         component.cache.id[options.id] = null; // 记录所有实例 id，用于批量操作（如 resize）
         elem.attr(MOD_ID, options.id); // 目标元素已渲染过的标记
         that.render(rerender); // 渲染核心
-      };
-
-      // 若绑定元素不存在
-      if (!elem[0]) {
-        return settings.isRenderWithoutElem ? render() : null; // 渲染是否无需指定目标元素
-      };
-
-      // 执行渲染 - 是否初始即渲染组件
-      if((settings.isRenderOnEvent && options.show) || !settings.isRenderOnEvent) {
-        render();
       }
 
       // 事件
-      typeof settings.events === 'function' && that.events();
+      typeof that.events === 'function' && that.events();
     };
 
     // 组件必传项
     Class.prototype.render = settings.render; // 渲染
     Class.prototype.events = settings.events; // 事件
 
-    // 元素操作缓存
-    Class.prototype.cache = function(key, value) {
+    /**
+     * 元素缓存操作
+     * @param {string} key - 缓存键
+     * @param {*} value - 缓存值
+     * @param {boolean} remove - 是否删除缓存
+     * @returns {*} - 若 value 未传，则返回缓存值
+     */
+    Class.prototype.cache = function(key, value, remove) {
       var that = this;
       var options = that.config;
       var elem = options.elem;
-
+      var MOD_CACHE_NAME = MOD_ID + '-cache';
       if (!elem) return;
 
-      var CACHE_NAME = 'lay_'+ MOD_NAME + '_cache';
-      var cache = elem.data(CACHE_NAME) || {};
+      var cache = elem.data(MOD_CACHE_NAME) || {};
 
-      if (value === undefined) return cache[key];
+      // value 未传则获取缓存值
+      if (value === undefined) {
+        return cache[key];
+      }
 
-      cache[key] = value;
-      elem.data(CACHE_NAME, cache);
+      if (remove) {
+        delete cache[key]; // 删除缓存
+      } else {
+        cache[key] = value; // 设置缓存
+      }
+
+      elem.data(MOD_CACHE_NAME, cache);
+    };
+
+    // 清除缓存
+    Class.prototype.removeCache = function(key) {
+      this.cache(key, null, true);
     };
 
     // 缓存所有实例对象
-    instance.that = {};
+   instance.that = {};
 
-    // 获取当前实例对象
-    instance.getThis = component.getThis = function(id) {
+    // 获取指定的实例对象
+    component.getInst = component.getThis = function(id) {
       if (id === undefined) {
         throw new Error('ID argument required');
       }
       return instance.that[id];
+    };
+
+    // 获取所有实例
+    component.getAllInst = function() {
+      return instance.that;
+    };
+
+    // 移除指定的实例对象
+    component.removeInst = function(id) {
+      delete instance.that[id];
+      delete component.cache.id[id];
     };
 
     // 组件缓存
@@ -216,7 +238,7 @@ layui.define(['jquery', 'lay'], function(exports) {
      * @returns
      */
     component.reload = function(id, options) {
-      var that = instance.getThis(id);
+      var that = component.getInst(id);
       if (!that) return;
 
       that.reload(options);
