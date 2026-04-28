@@ -2,15 +2,12 @@
  * form 表单组件
  */
 
-import { layui } from '../core/layui.js';
 import { lay } from '../core/lay.js';
 import { i18n } from '../core/i18n.js';
+import { log } from '../core/logger.js';
 import { $ } from 'jquery';
 import { util } from './util.js';
 import { layer } from './layer.js';
-
-var hint = layui.hint();
-// var device = layui.device();
 
 var MOD_NAME = 'form';
 var ELEM = '.layui-form';
@@ -106,7 +103,7 @@ Form.prototype.getFormElem = function (filter) {
 
 // 表单事件
 Form.prototype.on = function (events, callback) {
-  return layui.onevent.call(this, MOD_NAME, events, callback);
+  return lay.onevent.call(this, MOD_NAME, events, callback);
 };
 
 // 赋值/取值
@@ -159,7 +156,7 @@ Form.prototype.getValue = function (filter, itemForm) {
     field = {},
     fieldElem = itemForm.find('input,select,textarea'); // 获取所有表单域
 
-  layui.each(fieldElem, function (_, item) {
+  fieldElem.each(function (_, item) {
     var othis = $(this),
       init_name; // 初始 name
 
@@ -317,11 +314,11 @@ Form.prototype.render = function (type, filter) {
             lay.options(othis[0]),
           );
           var elemAffix = $('<div class="' + CLASS_AFFIX + '">');
-          var value = layui.isArray(opts.value) ? opts.value : [opts.value];
+          var value = lay.isArray(opts.value) ? opts.value : [opts.value];
           var elemIcon = $(
             (function () {
               var arr = [];
-              layui.each(value, function (i, item) {
+              value.forEach(function (item) {
                 arr.push(
                   '<i class="layui-icon layui-icon-' +
                     item +
@@ -392,16 +389,11 @@ Form.prototype.render = function (type, filter) {
               opts.click.call(this, othis, opts);
 
             // 对外事件
-            layui.event.call(
-              this,
-              MOD_NAME,
-              'input-affix(' + inputFilter + ')',
-              {
-                elem: othis[0],
-                affix: affix,
-                options: opts,
-              },
-            );
+            lay.event.call(this, MOD_NAME, 'input-affix(' + inputFilter + ')', {
+              elem: othis[0],
+              affix: affix,
+              options: opts,
+            });
           });
         };
 
@@ -733,10 +725,10 @@ Form.prototype.render = function (type, filter) {
               var lastIndex = allDisplayedElem.length - 1;
               var selectedIndex = -1;
 
-              layui.each(allDisplayedElem, function (index, el) {
+              allDisplayedElem.each(function (index, el) {
                 if ($(el).hasClass(THIS)) {
                   selectedIndex = index;
-                  return true;
+                  return false;
                 }
               });
 
@@ -780,7 +772,7 @@ Form.prototype.render = function (type, filter) {
           if (laySearch.fuzzy) {
             fuzzyMatchRE = fuzzyMatchRegExp(value, laySearch.caseSensitive);
           }
-          layui.each(dds, function () {
+          dds.each(function () {
             var othis = $(this);
             var text = othis.text();
             var isCreateOption = isCreatable && othis.hasClass(CREATE_OPTION);
@@ -810,7 +802,7 @@ Form.prototype.render = function (type, filter) {
           });
           // 处理 select 分组元素
           origin === 'keyup' &&
-            layui.each(dts, function () {
+            dts.each(function () {
               var othis = $(this);
               var thisDds = othis.nextUntil('dt').filter('dd'); // 当前分组下的dd元素
               if (isCreatable) thisDds = thisDds.not('.' + CREATE_OPTION);
@@ -891,7 +883,7 @@ Form.prototype.render = function (type, filter) {
         };
 
         if (isSearch) {
-          input.on('input', layui.debounce(search, 50)).on('blur', function () {
+          input.on('input', lay.debounce(search, 50)).on('blur', function () {
             var selectedIndex = select[0].selectedIndex;
 
             initValue = $(select[0].options[selectedIndex]).prop('text'); // 重新获得初始选中值
@@ -948,7 +940,7 @@ Form.prototype.render = function (type, filter) {
           othis.siblings().removeClass(THIS);
           select.val(value).removeClass('layui-form-danger');
 
-          layui.event.call(this, MOD_NAME, 'select(' + filter + ')', {
+          lay.event.call(this, MOD_NAME, 'select(' + filter + ')', {
             elem: select[0],
             value: value,
             othis: reElem,
@@ -1051,7 +1043,7 @@ Form.prototype.render = function (type, filter) {
           }
           var content = (function () {
             var arr = [];
-            layui.each(othis.find('optgroup,option'), function (index, item) {
+            othis.find('optgroup,option').each(function (index, item) {
               var tagName = item.tagName.toLowerCase();
               var dd = $('<dd lay-value=""></dd>');
               if (index === 0 && !item.value && tagName !== 'optgroup') {
@@ -1170,16 +1162,11 @@ Form.prototype.render = function (type, filter) {
           check[0].checked = checked;
 
           // 事件
-          layui.event.call(
-            check[0],
-            MOD_NAME,
-            RE_CLASS[2] + '(' + filter + ')',
-            {
-              elem: check[0],
-              value: check[0].value,
-              othis: reElem,
-            },
-          );
+          lay.event.call(check[0], MOD_NAME, RE_CLASS[2] + '(' + filter + ')', {
+            elem: check[0],
+            value: check[0].value,
+            othis: reElem,
+          });
         });
 
         reElem.on('click', function () {
@@ -1248,7 +1235,7 @@ Form.prototype.render = function (type, filter) {
           var titleTplElem = othis.next();
           title = titleTplElem.html() || '';
           if (titleTplElem[0].attributes.length > 1) {
-            layui.each(titleTplElem[0].attributes, function (i, attr) {
+            Array.from(titleTplElem[0].attributes).forEach(function (attr) {
               if (attr.name !== 'lay-checkbox') {
                 titleTplAttrs.push(attr.name + '="' + attr.value + '"');
               }
@@ -1335,7 +1322,7 @@ Form.prototype.render = function (type, filter) {
 
           radio[0].checked = true;
 
-          layui.event.call(radio[0], MOD_NAME, 'radio(' + filter + ')', {
+          lay.event.call(radio[0], MOD_NAME, 'radio(' + filter + ')', {
             elem: radio[0],
             value: radio[0].value,
             othis: reElem,
@@ -1360,7 +1347,7 @@ Form.prototype.render = function (type, filter) {
                 radioEl.name.replace(/(\.|#|\[|\])/g, '\\$1') +
                 ']',
             ); // 找到相同name的兄弟
-            layui.each(sameRadios, function () {
+            sameRadios.each(function () {
               if (radioEl === this) return;
               this.checked = false;
             });
@@ -1395,7 +1382,7 @@ Form.prototype.render = function (type, filter) {
           var titleTplElem = othis.next();
           title = titleTplElem.html() || '';
           if (titleTplElem[0].attributes.length > 1) {
-            layui.each(titleTplElem[0].attributes, function (i, attr) {
+            Array.from(titleTplElem[0].attributes).forEach(function (attr) {
               if (attr.name !== 'lay-radio') {
                 titleTplAttrs.push(attr.name + '="' + attr.value + '"');
               }
@@ -1428,13 +1415,13 @@ Form.prototype.render = function (type, filter) {
 
   // 执行所有渲染项
   var renderItem = function () {
-    layui.each(items, function (index, item) {
+    Object.values(items).forEach(function (item) {
       item();
     });
   };
 
   // jquery 对象
-  if (layui.type(type) === 'object') {
+  if (lay.type(type) === 'object') {
     // 若对象为表单域容器
     if ($(type).is(ELEM)) {
       elemForm = $(type);
@@ -1462,9 +1449,7 @@ Form.prototype.render = function (type, filter) {
     type
       ? items[type]
         ? items[type]()
-        : hint.error(
-            '[form] "' + type + '" is an unsupported form element type',
-          )
+        : log('[form] "' + type + '" is an unsupported form element type')
       : renderItem();
   }
   return that;
@@ -1552,7 +1537,7 @@ Form.prototype.validate = function (elem) {
   }
 
   // 开始校验
-  layui.each(elem, function (_, item) {
+  elem.each(function (_, item) {
     var othis = $(this);
     var verifyStr = othis.attr('lay-verify') || '';
     var vers = verifyStr.split('|');
@@ -1563,7 +1548,7 @@ Form.prototype.validate = function (elem) {
     othis.removeClass(DANGER); // 移除警示样式
 
     // 遍历元素绑定的验证规则
-    layui.each(vers, function (_, thisVer) {
+    for (const thisVer of vers) {
       var verst; // 校验结果
       var errorText = ''; // 错误提示文本
       var rule = verify[thisVer]; // 获取校验规则
@@ -1619,12 +1604,13 @@ Form.prototype.validate = function (elem) {
           }, 7);
 
           othis.addClass(DANGER);
-          return (intercept = true);
+          intercept = true;
+          break;
         }
       }
-    });
+    }
 
-    if (intercept) return intercept;
+    if (intercept) return false;
   });
 
   return !intercept;
@@ -1664,7 +1650,7 @@ var submit = (Form.prototype.submit = function (filter, callback) {
   typeof callback === 'function' && callback(params);
 
   // 事件
-  return layui.event.call(this, MOD_NAME, 'submit(' + layFilter + ')', params);
+  return lay.event.call(this, MOD_NAME, 'submit(' + layFilter + ')', params);
 });
 
 function fuzzyMatchRegExp(keyword, caseSensitive) {
@@ -1753,7 +1739,7 @@ var $dom = $(document);
 var $win = $(window);
 
 // 初始自动完成渲染
-$(function () {
+lay.use(function () {
   form.render();
 });
 

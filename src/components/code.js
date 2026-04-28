@@ -3,7 +3,6 @@
  * Code 预览组件
  */
 
-import { layui } from '../core/layui.js';
 import { lay } from '../core/lay.js';
 import { i18n } from '../core/i18n.js';
 import { $ } from 'jquery';
@@ -181,7 +180,7 @@ export function code(options) {
     config: options,
     reload: function (opts) {
       // 重载
-      layui.code(this.updateOptions(opts));
+      code(this.updateOptions(opts));
     },
     updateOptions: function (opts) {
       // 更新属性（选项）
@@ -195,8 +194,8 @@ export function code(options) {
   var elem = $(options.elem);
   if (elem.length > 1) {
     // 是否正向渲染
-    layui.each(options.obverse ? elem : elem.get().reverse(), function () {
-      layui.code(
+    (options.obverse ? elem : $(elem.get().reverse())).each(function () {
+      code(
         $.extend({}, options, {
           elem: this,
         }),
@@ -383,7 +382,7 @@ export function code(options) {
     elemView.addClass(options.className);
 
     // 标签头
-    layui.each(layout, function (i, v) {
+    layout.forEach(function (v, i) {
       var li = $('<li lay-id="' + v + '">');
       if (i === 0) li.addClass('layui-this');
       li.html(options.text[v]);
@@ -430,7 +429,7 @@ export function code(options) {
 
     // 初始化 copy tool
     if (options.copy) {
-      if (layui.type(options.tools) === 'array') {
+      if (lay.type(options.tools) === 'array') {
         // 若 copy 未存在于 tools 中，则追加到最前
         if (options.tools.indexOf('copy') === -1) {
           options.tools.unshift('copy');

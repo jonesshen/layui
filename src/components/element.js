@@ -3,7 +3,7 @@
  * 常用元素操作
  */
 
-import { layui } from '../core/layui.js';
+import { lay } from '../core/lay.js';
 import { $ } from 'jquery';
 import { componentBuilder } from '../core/component.js';
 import { nav } from './nav.js';
@@ -50,15 +50,17 @@ $.extend(component, {
       });
     }
 
-    return components[type]
-      ? elements[type].render({
-          elem: components[type],
-        })
-      : layui.each(components, function (componentName) {
-          elements[componentName].render({
-            elem: components[componentName],
-          });
-        });
+    if (components[type]) {
+      return elements[type].render({
+        elem: components[type],
+      });
+    }
+
+    Object.keys(components).forEach(function (componentName) {
+      elements[componentName].render({
+        elem: components[componentName],
+      });
+    });
   },
 
   progress: progress.setValue,
@@ -67,7 +69,7 @@ $.extend(component, {
 component.init = component.render;
 
 // 自动渲染
-$(() => {
+lay.use(() => {
   component.render();
 });
 
